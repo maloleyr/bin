@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+set -u
+set -o pipefail
+
+# A utility to send a named file to the Trash can.
+# Credit: Evan Hahn [https://codeberg.org/EvanHahn]
+
+gio trash "$@"

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+set -u
+set -o pipefail
+
+# A utility to download a song from YouTube (and other services).
+# Credit: Evan Hahn [https://codeberg.org/EvanHahn]
+
+exec yt-dlp -f bestaudio -o '%(title)s.%(ext)s' "$@"
