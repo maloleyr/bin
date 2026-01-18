@@ -6,4 +6,11 @@ set -o pipefail
 # A utility to download a song from YouTube (and other services).
 # Credit: Evan Hahn [https://codeberg.org/EvanHahn]
 
-exec yt-dlp -f bestaudio -o '%(title)s.%(ext)s' "$@"
+# Original line credit Evan Hahn.
+#exec yt-dlp -f bestaudio -o '%(title)s.%(ext)s' "$@"
+
+# Preferred implementation. Download mp3 version.
+## NOTE: Make sure to download the latest 'yt-dlp' release and put in ~/.local/bin/
+## NOTE: Make sure to download the latest 'deno' javascript release and put in ~/.local/bin/
+exec yt-dlp -x --audio-format mp3 -o '%(title)s.%(ext)s' "$@"
+
