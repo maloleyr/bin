@@ -6,6 +6,6 @@ set -o pipefail
 # A utility to show the current date in ISO format and the time.
 # Credit: Evan Hahn [https://codeberg.org/EvanHahn]
 
-echo "[+] ISO8601 Date: $(date '+%Y-%m-%d')"
-echo "[+]   Local Time: $(date +%T\ %Z)"
-echo "[+]     UTC Time: $(date -u +%T\ UTC)"
+echo "[+] ISO8601 Timestamp: $(date '+%Y-%m-%dT%H:%M:%S%:z')"
+echo "[+]        Local Time: $(date '+%T %Z')"
+echo "[+]          UTC Time: $(date -u '+%T UTC')"
