@@ -6,89 +6,34 @@ set -o pipefail
 # A utility to create Powershell files with sane default.
 # Credit: Evan Hahn [https://codeberg.org/EvanHahn]
 
-if [ ! $# -eq 1 ]; then
-  echo 'mkps takes one argument' 1>&2
-  exit 1
-elif [ -e "$1" ]; then
-  echo "$1 already exists" 1>&2
+if [ "$#" -ne 1 ]; then
+  echo "Usage: mkps <filename>" 1>&2
   exit 1
 fi
 
-echo '<#
-.SYNOPSIS
-    Generic idempotent PowerShell script template.
+TARGET="$1"
 
-.DESCRIPTION
-    This template demonstrates:
-      - Optional DryRun support
-      - Idempotent action logic
-      - Logging
-      - Administrator check (commented by default)
-      - Sample action: create /tmp/hello_world.txt and write "Hello World!" once
+if [ -e "$TARGET" ]; then
+  echo "$TARGET already exists" 1>&2
+  exit 1
+fi
 
-.PARAMETER DryRun
-    If set, actions are logged but not executed.
-#>
+# Determine the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-param(
-    [switch]$DryRun
-)
+# Path to the template file
+TEMPLATE="$SCRIPT_DIR/0_pwsh_template"
 
-# -------------------------
-# Helper Logging Functions
-# -------------------------
-function Write-Ok   { Write-Host "[OK]  $args" -ForegroundColor Green }
-function Write-Warn { Write-Host "[WARN] $args" -ForegroundColor Yellow }
+if [ ! -f "$TEMPLATE" ]; then
+  echo "Template file not found at $TEMPLATE" 1>&2
+  exit 1
+fi
 
-function Invoke-Action {
-    param(
-        [scriptblock]$Action,
-        [string]$Description
-    )
+# Copy template to the target in the current working directory
+cp "$TEMPLATE" "$TARGET"
 
-    if ($DryRun) {
-        Write-Warn "DryRun: $Description"
-    } else {
-        try {
-            & $Action
-            Write-Ok $Description
-        } catch {
-            Write-Warn "Failed to execute: $Description"
-            Write-Warn $_
-        }
-    }
-}
+# Make it executable
+chmod u+x "$TARGET"
 
-# -------------------------
-# Administrator Check (Optional)
-# -------------------------
-# Uncomment the block below to require Administrator privileges
-# if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-#     Write-Warn "This script must be run as Administrator."
-#     exit 1
-# }
-
-# -------------------------
-# Idempotent Action Example
-# -------------------------
-$TempFile = "/tmp/hello_world.txt"
-
-if (Test-Path $TempFile) {
-    Write-Ok "Temporary file already exists: $TempFile. Skipping creation."
-} else {
-    Invoke-Action {
-        # Ensure /tmp exists
-        if (-not (Test-Path "/tmp")) { New-Item -ItemType Directory -Path "/tmp" | Out-Null }
-        # Create the file and write a message
-        "Hello World!" | Out-File -FilePath $TempFile -Encoding UTF8
-        Write-Host "Hello World!"   # Print to console
-    } "Create temporary file $TempFile and write Hello World"
-}
-
-Write-Host "Script execution completed." -ForegroundColor Cyan
-
-' > "$1"
-
-chmod u+x "$1"
-
-"$EDITOR" "$1"
+# Open in editor
+"$EDITOR" "$TARGET"
