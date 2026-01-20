@@ -12,7 +12,7 @@
     If set, actions are logged but not executed.
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 
 param (
     # PUT PARAMETER DEFINITIONS HERE AND DELETE THIS COMMENT.
