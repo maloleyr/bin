@@ -4,74 +4,63 @@
 
 .DESCRIPTION
     This template contains:
-      - DryRun support
+      - "WhatIf" Support [$PSCmdlet.ShouldProcess]
       - Logging
       - Administrator check
 
-.PARAMETER DryRun
+.PARAMETER WhatIf
     If set, actions are logged but not executed.
 #>
 
 [CmdletBinding()]
 
 param (
-	# PUT PARAMETER DEFINITIONS HERE AND DELETE THIS COMMENT.
-	[switch]$DryRun
+    # PUT PARAMETER DEFINITIONS HERE AND DELETE THIS COMMENT.
+    #[switch]$DryRun
 )
 
-begin {
-    # DEFINE FUNCTIONS HERE AND DELETE THIS COMMENT.
+# FUNCTIONS
+function Write-Ok { Write-Host "[OK]  $args" -ForegroundColor Green }
+function Write-Warn { Write-Host "[WARN] $args" -ForegroundColor Yellow }
 
-    function Write-Ok {
-        Write-Host "[OK]  $args" -ForegroundColor Green
-    }
-    function Write-Warn {
-        Write-Host "[WARN] $args" -ForegroundColor Yellow
-    }
-
-    # Function to check to see if we are "Administrator" or not.
-    function Check-Administrator {
-        if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-         Write-Warn "This script must be run as Administrator."
-         return $false
-        }
-        else {
-            Write-OK "Running as Administrator."
-            return $true
-        }
-    }
-
-    $InformationPreference = 'Continue'
-    # $VerbosePreference = 'Continue' # Uncomment this line if you want to see verbose messages.
-
-    # Log all script output to a file for easy reference later if needed.
-    [string] $lastRunLogFilePath = "$PSCommandPath.LastRun.log"
-    Start-Transcript -Path $lastRunLogFilePath
-
-    # Display the time that this script started running.
-    [DateTime] $startTime = Get-Date
-    Write-Information "Starting script at '$($startTime.ToString('u'))'."
-}
-
-process {
-    # PUT SCRIPT CODE HERE AND DELETE THIS COMMENT.
-    if ($DryRun) {
-        Write-Warn "DryRun caught: This script would normally execute. Exiting safely."
-        exit 0
-    }
-    if (Check-Administrator) {
-        Write-OK "Executing as Administrator. Continuing."
+function Check-Administrator {
+    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Write-Warn "This script must be run as Administrator."
+        return $false
     }
     else {
-        Write-Warn "Not executing as Administrator. Exiting."
-        exit 1
+        Write-Ok "Running as Administrator."
+        return $true
     }
 }
 
-end {
-    # Display the time that this script finished running, and how long it took to run.
-    [DateTime] $finishTime = Get-Date
-    [TimeSpan] $elapsedTime = $finishTime - $startTime
+# END FUNCTIONS
+
+# LOGGING
+$InformationPreference = 'Continue'
+$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$lastRunLogFilePath = "$PSCommandPath.$timestamp.log"
+
+# DO STUFF
+try {
+    if (-not $Global:Transcribing) {
+        Start-Transcript -Path $lastRunLogFilePath -Append
+    }
+
+    $startTime = Get-Date
+    Write-Information "Starting script at '$($startTime.ToString('u'))'."
+
+    # BEGIN MAIN SCRIPT
+    ##### PUT STUFF HERE TO DO STUFF #####
+    # END MAIN SCRIPT
+
+    $finishTime = Get-Date
+    $elapsedTime = $finishTime - $startTime
     Write-Information "Finished script at '$($finishTime.ToString('u'))'. Took '$elapsedTime' to run."
-    Stop-Transcript
+}
+
+finally {
+    if ($Global:Transcribing) {
+        Stop-Transcript
+    }
 }
