@@ -16,96 +16,76 @@ fi
 
 echo '<#
 .SYNOPSIS
-    Short description of what this script does.
+    Generic idempotent PowerShell script template.
 
 .DESCRIPTION
-    Longer description of purpose, behavior, and constraints.
+    This template demonstrates:
+      - Optional DryRun support
+      - Idempotent action logic
+      - Logging
+      - Administrator check (commented by default)
+      - Sample action: create /tmp/hello_world.txt and write "Hello World!" once
 
-.NOTES
-    Author: 
-    Project: 
-    Phase: 
-    Requires: Administrator (Yes/No)
-    Idempotent: Yes / Mostly / No
+.PARAMETER DryRun
+    If set, actions are logged but not executed.
 #>
 
-#region Strict Mode & Error Handling
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-#endregion
-
-#region Parameters
-[CmdletBinding(SupportsShouldProcess = $true)]
-param (
+param(
     [switch]$DryRun
 )
-#endregion
 
-#region Helper Functions
+# -------------------------
+# Helper Logging Functions
+# -------------------------
+function Write-Ok   { Write-Host "[OK]  $args" -ForegroundColor Green }
+function Write-Warn { Write-Host "[WARN] $args" -ForegroundColor Yellow }
 
-function Write-Info {
-    param ([string]$Message)
-    Write-Host "[*] $Message"
-}
-
-function Write-Ok {
-    param ([string]$Message)
-    Write-Host "[+] $Message"
-}
-
-function Write-Warn {
-    param ([string]$Message)
-    Write-Warning $Message
-}
-
-function Write-Fail {
-    param ([string]$Message)
-    Write-Error $Message
-}
-
-#endregion
-
-#region Preflight Checks
-
-function Assert-Admin {
-    if (-not ([Security.Principal.WindowsPrincipal] `
-        [Security.Principal.WindowsIdentity]::GetCurrent()
-        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-
-        Write-Fail "This script must be run as Administrator."
-        exit 1
-    }
-}
-
-Assert-Admin
-#endregion
-
-#region Main Logic
-
-try {
-    Write-Info "Starting script: $($MyInvocation.MyCommand.Name)"
+function Invoke-Action {
+    param(
+        [scriptblock]$Action,
+        [string]$Description
+    )
 
     if ($DryRun) {
-        Write-Warn "DryRun mode enabled — no changes will be made."
+        Write-Warn "DryRun: $Description"
+    } else {
+        try {
+            & $Action
+            Write-Ok $Description
+        } catch {
+            Write-Warn "Failed to execute: $Description"
+            Write-Warn $_
+        }
     }
-
-    # === SCRIPT BODY STARTS HERE ===
-    # Example:
-    # if ($PSCmdlet.ShouldProcess("Firewall", "Disable inbound rules")) {
-    #     ...
-    # }
-    # === SCRIPT BODY ENDS HERE ===
-
-    Write-Ok "Script completed successfully."
-    exit 0
-}
-catch {
-    Write-Fail "Script failed: $($_.Exception.Message)"
-    exit 1
 }
 
-#endregion
+# -------------------------
+# Administrator Check (Optional)
+# -------------------------
+# Uncomment the block below to require Administrator privileges
+# if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+#     Write-Warn "This script must be run as Administrator."
+#     exit 1
+# }
 
+# -------------------------
+# Idempotent Action Example
+# -------------------------
+$TempFile = "/tmp/hello_world.txt"
+
+if (Test-Path $TempFile) {
+    Write-Ok "Temporary file already exists: $TempFile. Skipping creation."
+} else {
+    Invoke-Action {
+        # Ensure /tmp exists
+        if (-not (Test-Path "/tmp")) { New-Item -ItemType Directory -Path "/tmp" | Out-Null }
+        # Create the file and write a message
+        "Hello World!" | Out-File -FilePath $TempFile -Encoding UTF8
+        Write-Host "Hello World!"   # Print to console
+    } "Create temporary file $TempFile and write Hello World"
+}
+
+Write-Host "Script execution completed." -ForegroundColor Cyan
 
 ' > "$1"
 
