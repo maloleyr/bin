@@ -3,7 +3,7 @@ set -e
 set -u
 set -o pipefail
 
-# A utility to create Powershell files with sane default.
+# A utility to create Powershell files with sane defaults.
 # Credit: Evan Hahn [https://codeberg.org/EvanHahn]
 
 if [ "$#" -ne 1 ]; then
@@ -30,7 +30,7 @@ if [ ! -f "$TEMPLATE" ]; then
 fi
 
 # Copy template to the target in the current working directory
-cp "$TEMPLATE" "$TARGET"
+cp "$TEMPLATE" "${TARGET}.ps1"
 
 # Make it executable
 chmod u+x "$TARGET"

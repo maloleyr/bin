@@ -1,66 +1,71 @@
 <#
 .SYNOPSIS
-    Generic PowerShell script template.
+    This is a PowerShell template/skeleton file. 
 
 .DESCRIPTION
-    This template contains:
-      - "WhatIf" Support [$PSCmdlet.ShouldProcess]
-      - Logging
-      - Administrator check
+    A more detailed explanation of the script's purpose, arguments, and usage.
 
-.PARAMETER WhatIf
-    If set, actions are logged but not executed.
+.PARAMETER InputObject
+    Description of the input parameter.
+
+.EXAMPLE
+    .\Your-Script.ps1 -InputObject 'ExampleValue'
+    Shows how to use a specific parameter.
+
+.NOTES
+    Author: Richard Maloley II
+    Date: 2026-01-21
+    Version: 0.0.1
 #>
+[CmdletBinding()] # Enables common parameters like -Verbose, -Debug
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$InputObject,
 
-[CmdletBinding(SupportsShouldProcess)]
-
-param (
-    # PUT PARAMETER DEFINITIONS HERE AND DELETE THIS COMMENT.
-    #[switch]$DryRun
+    [Parameter(Mandatory=$false)]
+    [switch]$Force
 )
 
-# FUNCTIONS
-function Write-Ok { Write-Host "[OK]  $args" -ForegroundColor Green }
-function Write-Warn { Write-Host "[WARN] $args" -ForegroundColor Yellow }
-
-function Check-Administrator {
-    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-        Write-Warn "This script must be run as Administrator."
-        return $false
-    }
-    else {
-        Write-Ok "Running as Administrator."
-        return $true
-    }
+begin {
+    # Setup, load modules, establish connections
+    Write-Verbose "Starting script execution..."
+    $ErrorActionPreference = 'Stop' # Stop on terminating errors
+    function Write-Ok   { Write-Host "[OK]   $args" -ForegroundColor Green } # For extra standard out messaging.
 }
 
-# END FUNCTIONS
+process {
+    # =========================
+    # MAIN SCRIPT
+    # =========================
 
-# LOGGING
-$InformationPreference = 'Continue'
-$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$lastRunLogFilePath = "$PSCommandPath.$timestamp.log"
+    $startTime = Get-Date # Record the start time.
+    Write-Ok "Starting script at '$($startTime.ToString('u'))'."
 
-# DO STUFF
-try {
-    if (-not $Global:Transcribing) {
-        Start-Transcript -Path $lastRunLogFilePath -Append
+    <#
+        Change all the logic below before the final "}" for
+            your scripting needs.
+    #>
+
+    # Main logic for processing input
+    try {
+        Write-Host "Processing: $InputObject"
+        # Add your core logic here, e.g.,
+        # Get-ChildItem -Path $InputObject -Recurse
+        if ($Force) {
+            Write-Warning "Force parameter used."
+        }
+        # ... your commands
     }
-
-    $startTime = Get-Date
-    Write-Information "Starting script at '$($startTime.ToString('u'))'."
-
-    # BEGIN MAIN SCRIPT
-    ##### PUT STUFF HERE TO DO STUFF #####
-    # END MAIN SCRIPT
-
+    catch {
+        # Error handling for the process block
+        Write-Error "An error occurred: $($_.Exception.Message)"
+    }
     $finishTime = Get-Date
     $elapsedTime = $finishTime - $startTime
-    Write-Information "Finished script at '$($finishTime.ToString('u'))'. Took '$elapsedTime' to run."
+    Write-Ok "Finished script at '$($finishTime.ToString('u'))'. Took '$elapsedTime' to run."
 }
 
-finally {
-    if ($Global:Transcribing) {
-        Stop-Transcript
-    }
+end {
+    # Cleanup, final output, closing connections
+    Write-Verbose "Script execution finished."
 }
