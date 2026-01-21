@@ -30,7 +30,7 @@ if [ ! -f "$TEMPLATE" ]; then
 fi
 
 # Copy template to the target in the current working directory
-cp "$TEMPLATE" "${TARGET}.ps1"
+cp "$TEMPLATE" "$TARGET"
 
 # Make it executable
 chmod u+x "$TARGET"
