@@ -6,11 +6,41 @@ set -o pipefail
 # A utility to download a song from YouTube (and other services).
 # Credit: Evan Hahn [https://codeberg.org/EvanHahn]
 
-# Original line credit Evan Hahn.
-#exec yt-dlp -f bestaudio -o '%(title)s.%(ext)s' "$@"
+LOCAL_BIN="$HOME/.local/bin"
+YT_DLP="$LOCAL_BIN/yt-dlp"
+DENO="$LOCAL_BIN/deno"
 
-# Preferred implementation. Download mp3 version.
-## NOTE: Make sure to download the latest 'yt-dlp' release and put in ~/.local/bin/
-## NOTE: Make sure to download the latest 'deno' javascript release and put in ~/.local/bin/
-exec yt-dlp -x --audio-format mp3 -o '%(title)s.%(ext)s' "$@"
+YT_DLP_URL="https://github.com/yt-dlp/yt-dlp/releases/download/2025.12.08/yt-dlp_linux"
+DENO_ZIP_URL="https://github.com/denoland/deno/releases/download/v2.6.6/deno-x86_64-unknown-linux-gnu.zip"
 
+# --- Ensure ~/.local/bin exists ---
+mkdir -p "$LOCAL_BIN"
+
+# --- Ensure yt-dlp exists ---
+if [[ ! -x "$YT_DLP" ]]; then
+  echo "yt-dlp not found. Downloading..."
+  curl -L --fail -o "$YT_DLP" "$YT_DLP_URL"
+  chmod +x "$YT_DLP"
+fi
+
+# --- Ensure deno exists ---
+if [[ ! -x "$DENO" ]]; then
+  echo "deno not found. Downloading..."
+
+  if ! command -v unzip >/dev/null 2>&1; then
+    echo "Error: unzip is required to install deno but was not found." >&2
+    exit 1
+  fi
+
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  curl -L --fail -o "$tmpdir/deno.zip" "$DENO_ZIP_URL"
+  unzip -q "$tmpdir/deno.zip" -d "$tmpdir"
+
+  mv "$tmpdir/deno" "$DENO"
+  chmod +x "$DENO"
+fi
+
+# --- Execute yt-dlp ---
+exec "$YT_DLP" -x --audio-format mp3 -o '%(title)s.%(ext)s' "$@"
