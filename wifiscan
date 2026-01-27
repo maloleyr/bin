@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# airodump-ng wrapper (external adapter only)
+# Usage: wifiscan <capture_prefix>
+
+#######################################
+# Argument handling
+#######################################
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 <capture_prefix>"
+    exit 1
+fi
+
+CAPTURE_PREFIX="$1"
+OUTPUT_DIR="$(pwd)"
+
+#######################################
+# Dependency check
+#######################################
+if ! command -v airodump-ng >/dev/null 2>&1; then
+    echo "[!] airodump-ng not found."
+    echo "    Install with: sudo apt install aircrack-ng"
+    exit 1
+fi
+
+#######################################
+# Wireless interface detection
+#######################################
+mapfile -t IFACES < <(iw dev | awk '$1=="Interface"{print $2}')
+
+if [[ ${#IFACES[@]} -eq 0 ]]; then
+    echo "[!] No wireless interfaces detected."
+    exit 1
+fi
+
+#######################################
+# Require external USB adapter (wlx*)
+#######################################
+EXTERNAL_IFACE=""
+
+for iface in "${IFACES[@]}"; do
+    if [[ "$iface" == wlx* ]]; then
+        EXTERNAL_IFACE="$iface"
+        break
+    fi
+done
+
+if [[ -z "$EXTERNAL_IFACE" ]]; then
+    echo "[!] No external USB wireless adapter detected (wlx*)."
+    echo "[!] Internal adapters (wlp*) are intentionally not allowed."
+    echo "[*] Aborting to protect internal wireless hardware."
+    exit 1
+fi
+
+echo "[*] Using external USB adapter: $EXTERNAL_IFACE"
+
+#######################################
+# Run airodump-ng
+#######################################
+echo "[*] Output directory: $OUTPUT_DIR"
+echo "[*] Capture prefix: $CAPTURE_PREFIX"
+echo "[*] Starting airodump-ng (Ctrl+C to stop)..."
+
+sudo airodump-ng \
+    -w "${OUTPUT_DIR}/${CAPTURE_PREFIX}" \
+    "$EXTERNAL_IFACE"
