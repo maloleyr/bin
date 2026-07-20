@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -e
+set -u
+set -o pipefail
+
+search="$1"
+replace="$2"
+shift 2
+
+echo '[*] Searching for "'"$search"'" and replacing it with "'"$replace"'" in "'"$@"'".'
+
+sed -i.bak "s/${search}/${replace}/g" "$@"

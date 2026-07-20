@@ -1,0 +1,71 @@
+<#
+.SYNOPSIS
+    This is a PowerShell template/skeleton file. 
+
+.DESCRIPTION
+    A more detailed explanation of the script's purpose, arguments, and usage.
+
+.PARAMETER InputObject
+    Description of the input parameter.
+
+.EXAMPLE
+    .\Your-Script.ps1 -InputObject 'ExampleValue'
+    Shows how to use a specific parameter.
+
+.NOTES
+    Author: Richard Maloley II
+    Date: 2026-01-21
+    Version: 0.0.1
+#>
+[CmdletBinding()] # Enables common parameters like -Verbose, -Debug
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$InputObject,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$Force
+)
+
+begin {
+    # Setup, load modules, establish connections
+    Write-Verbose "Starting script execution..."
+    $ErrorActionPreference = 'Stop' # Stop on terminating errors
+    function Write-Ok   { Write-Host "[OK]   $args" -ForegroundColor Green } # For extra standard out messaging.
+}
+
+process {
+    # =========================
+    # MAIN SCRIPT
+    # =========================
+
+    $startTime = Get-Date # Record the start time.
+    Write-Ok "Starting script at '$($startTime.ToString('u'))'."
+
+    <#
+        Change all the logic below before the final "}" for
+            your scripting needs.
+    #>
+
+    # Main logic for processing input
+    try {
+        Write-Host "Processing: $InputObject"
+        # Add your core logic here, e.g.,
+        # Get-ChildItem -Path $InputObject -Recurse
+        if ($Force) {
+            Write-Warning "Force parameter used."
+        }
+        # ... your commands
+    }
+    catch {
+        # Error handling for the process block
+        Write-Error "An error occurred: $($_.Exception.Message)"
+    }
+    $finishTime = Get-Date
+    $elapsedTime = $finishTime - $startTime
+    Write-Ok "Finished script at '$($finishTime.ToString('u'))'. Took '$elapsedTime' to run."
+}
+
+end {
+    # Cleanup, final output, closing connections
+    Write-Verbose "Script execution finished."
+}

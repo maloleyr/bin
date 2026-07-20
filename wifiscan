@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# wifiscan - airodump-ng wrapper for engagement wireless captures
+#
+# Usage: wifiscan <capture_prefix> [--split] [--reg <CC>]
+#
+#   <capture_prefix>   Output filename stem (airodump appends -01, -02, ...)
+#   --split            Run two passes: 2.4 GHz, then 5 GHz, written to
+#                      <prefix>-24 and <prefix>-5 respectively
+#   --reg <CC>         Regulatory domain ISO 3166-1 code (default: US)
+#
+# Safeguards:
+#   - Refuses to operate on internal adapters (wlp*). Only external USB
+#     adapters (wlx*) are eligible. Internal radio is left untouched.
+#   - On exit (including Ctrl+C / errors), restores the external adapter
+#     to managed mode and hands it back to NetworkManager.
+#
+# Run as a standard user; sudo is invoked internally for the privileged
+# steps (regdomain, monitor mode, airodump-ng).
+
+#######################################
+# Argument parsing
+#######################################
+REGDOMAIN="US"
+SPLIT=0
+CAPTURE_PREFIX=""
+
+usage() {
+    sed -n '4,18p' "$0" | sed 's/^# \{0,1\}//'
+    exit "${1:-0}"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --split)        SPLIT=1; shift ;;
+        --reg)          REGDOMAIN="${2:-}"; [[ -z "$REGDOMAIN" ]] && usage 1; shift 2 ;;
+        -h|--help)      usage 0 ;;
+        -*)             echo "[!] Unknown option: $1" >&2; usage 1 ;;
+        *)
+            if [[ -z "$CAPTURE_PREFIX" ]]; then
+                CAPTURE_PREFIX="$1"
+            else
+                echo "[!] Unexpected argument: $1" >&2
+                usage 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$CAPTURE_PREFIX" ]]; then
+    usage 1
+fi
+
+OUTPUT_DIR="$(pwd)"
+
+#######################################
+# Dependency check
+#######################################
+for cmd in airodump-ng iw ip; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "[!] Required command not found: $cmd" >&2
+        case "$cmd" in
+            airodump-ng) echo "    Install with: sudo apt install aircrack-ng" >&2 ;;
+            iw|ip)       echo "    Install with: sudo apt install iproute2 iw"   >&2 ;;
+        esac
+        exit 1
+    fi
+done
+
+#######################################
+# Prime sudo (so credentials are cached before the long-running capture)
+#######################################
+echo "[*] Validating sudo access..."
+sudo -v
+
+#######################################
+# Wireless interface detection — external USB only
+#######################################
+mapfile -t IFACES < <(iw dev 2>/dev/null | awk '$1=="Interface"{print $2}')
+
+if [[ ${#IFACES[@]} -eq 0 ]]; then
+    echo "[!] No wireless interfaces detected." >&2
+    exit 1
+fi
+
+EXTERNAL_IFACE=""
+for iface in "${IFACES[@]}"; do
+    if [[ "$iface" == wlx* ]]; then
+        EXTERNAL_IFACE="$iface"
+        break
+    fi
+done
+
+if [[ -z "$EXTERNAL_IFACE" ]]; then
+    echo "[!] No external USB wireless adapter detected (wlx*)." >&2
+    echo "[!] Internal adapters (wlp*) are intentionally not touched." >&2
+    echo "[*] Aborting to protect internal wireless hardware." >&2
+    exit 1
+fi
+
+echo "[*] Using external USB adapter: $EXTERNAL_IFACE"
+
+#######################################
+# Cleanup trap — restore the adapter to its prior state on any exit
+#######################################
+MONITOR_APPLIED=0
+NM_RELEASED=0
+
+cleanup() {
+    local rc=$?
+    echo ""
+    echo "[*] Restoring $EXTERNAL_IFACE..."
+    if [[ $MONITOR_APPLIED -eq 1 ]]; then
+        sudo ip link set "$EXTERNAL_IFACE" down 2>/dev/null || true
+        sudo iw dev "$EXTERNAL_IFACE" set type managed 2>/dev/null || true
+        sudo ip link set "$EXTERNAL_IFACE" up 2>/dev/null || true
+    fi
+    if [[ $NM_RELEASED -eq 1 ]] && command -v nmcli >/dev/null 2>&1; then
+        sudo nmcli device set "$EXTERNAL_IFACE" managed yes 2>/dev/null || true
+    fi
+    echo "[*] Done. (exit $rc)"
+}
+trap cleanup EXIT INT TERM
+
+#######################################
+# Detach external adapter from NetworkManager (target-only, leaves wlp* alone)
+#######################################
+if command -v nmcli >/dev/null 2>&1; then
+    echo "[*] Releasing $EXTERNAL_IFACE from NetworkManager..."
+    sudo nmcli device set "$EXTERNAL_IFACE" managed no
+    NM_RELEASED=1
+fi
+
+#######################################
+# Regulatory domain — unlocks 5 GHz channels permitted in $REGDOMAIN
+#######################################
+echo "[*] Setting regulatory domain: $REGDOMAIN"
+sudo iw reg set "$REGDOMAIN"
+
+#######################################
+# Monitor mode
+#######################################
+echo "[*] Putting $EXTERNAL_IFACE into monitor mode..."
+sudo ip link set "$EXTERNAL_IFACE" down
+sudo iw dev "$EXTERNAL_IFACE" set type monitor
+sudo ip link set "$EXTERNAL_IFACE" up
+MONITOR_APPLIED=1
+
+CURRENT_MODE=$(iw dev "$EXTERNAL_IFACE" info 2>/dev/null | awk '/type/{print $2; exit}')
+if [[ "$CURRENT_MODE" != "monitor" ]]; then
+    echo "[!] Failed to enter monitor mode (current: $CURRENT_MODE)" >&2
+    exit 1
+fi
+echo "[*] Monitor mode confirmed."
+
+#######################################
+# Capture function
+#######################################
+run_capture() {
+    local band="$1"
+    local suffix="$2"
+    local full_prefix="${OUTPUT_DIR}/${CAPTURE_PREFIX}${suffix}"
+
+    echo ""
+    echo "[*] Capture starting"
+    echo "    Band:    $band"
+    echo "    Prefix:  $full_prefix"
+    echo "    Stop:    Ctrl+C"
+    echo ""
+
+    # || true so Ctrl+C exiting airodump doesn't trip set -e before cleanup
+    sudo airodump-ng \
+        --band "$band" \
+        --manufacturer \
+        --wps \
+        --uptime \
+        --berlin 60 \
+        -w "$full_prefix" \
+        "$EXTERNAL_IFACE" || true
+}
+
+#######################################
+# Run captures
+#######################################
+if [[ $SPLIT -eq 1 ]]; then
+    echo "[*] Split mode: 2.4 GHz pass first, then 5 GHz pass."
+    run_capture "bg" "-24"
+    echo "[*] 2.4 GHz pass complete. Press Enter to begin 5 GHz pass, or Ctrl+C to stop."
+    read -r _
+    run_capture "a" "-5"
+else
+    run_capture "abg" ""
+fi
+
+echo "[*] All captures complete."

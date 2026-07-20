@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+set -u
+set -o pipefail
+
+# A basic timer utility.
+# Credit: Evan Hahn [https://codeberg.org/EvanHahn]
+
+sleep "$1"
+sfx ringaling
+notify 'timer complete' "$1"

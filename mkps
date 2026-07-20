@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -e
+set -u
+set -o pipefail
+
+# A utility to create Powershell files with sane defaults.
+# Credit: Evan Hahn [https://codeberg.org/EvanHahn]
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: mkps <filename>" 1>&2
+  exit 1
+fi
+
+TARGET="$1"
+
+if [ -e "$TARGET" ]; then
+  echo "$TARGET already exists" 1>&2
+  exit 1
+fi
+
+# Determine the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Path to the template file
+TEMPLATE="$SCRIPT_DIR/0_pwsh_template"
+
+if [ ! -f "$TEMPLATE" ]; then
+  echo "Template file not found at $TEMPLATE" 1>&2
+  exit 1
+fi
+
+# Copy template to the target in the current working directory
+cp "$TEMPLATE" "$TARGET"
+
+# Make it executable
+chmod u+x "$TARGET"
+
+# Open in editor
+"$EDITOR" "$TARGET"
