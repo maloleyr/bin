@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# ~/bin/uv — bootstrap wrapper.
+#
+# If the real 'uv' binary isn't installed yet, this fetches it directly
+# from GitHub Releases (astral-sh/uv), verifies it against the checksum
+# GitHub publishes alongside each asset, and installs it to
+# ~/.local/bin/uv. After that, every invocation just execs the real
+# binary — this wrapper adds one cheap existence check, nothing more.
+#
+# Why this instead of the official `curl | sh` installer: same source
+# (GitHub releases, same publisher), but you get to see exactly what's
+# being fetched, verify the checksum yourself, and it never pipes
+# anything straight into a shell.
+
+set -euo pipefail
+
+REPO="astral-sh/uv"
+INSTALL_DIR="$HOME/.local/bin"
+REAL_UV="$INSTALL_DIR/uv"
+
+# Already installed — just get out of the way.
+if [[ -x "$REAL_UV" ]]; then
+  exec "$REAL_UV" "$@"
+fi
+
+echo "uv not found — bootstrapping from GitHub releases (${REPO})..." >&2
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64)  TARGET="x86_64-unknown-linux-gnu" ;;
+  aarch64) TARGET="aarch64-unknown-linux-gnu" ;;
+  *)
+    echo "uv-bootstrap: unsupported architecture '$ARCH'." >&2
+    echo "See https://github.com/${REPO}/releases for available targets." >&2
+    exit 1
+    ;;
+esac
+
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+
+ASSET="uv-${TARGET}.tar.gz"
+
+# Resolve the latest release via GitHub's own "latest" redirect rather
+# than api.github.com — this lives on github.com, isn't subject to the
+# API's (much lower) unauthenticated rate limit. Deliberately NOT using
+# -L here: the first hop redirects to .../releases/download/<TAG>/<asset>
+# (what we want to read), but a second hop after that goes to a signed,
+# short-lived S3 URL with no version string in a parseable place — so we
+# stop after exactly one hop and read its Location header directly.
+LATEST_URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
+REDIRECT_TARGET="$(curl -fsI "$LATEST_URL" | tr -d '\r' | grep -i '^location:' | awk '{print $2}')"
+TAG="$(echo "$REDIRECT_TARGET" | sed -E 's#.*/download/([^/]+)/.*#\1#')"
+
+if [[ -z "$TAG" ]]; then
+  echo "uv-bootstrap: could not resolve the latest release from ${LATEST_URL}" >&2
+  exit 1
+fi
+
+BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+
+echo "Downloading ${ASSET} (${TAG})..." >&2
+curl -fsSL "${BASE_URL}/${ASSET}" -o "${TMPDIR}/${ASSET}"
+
+echo "Verifying checksum..." >&2
+if curl -fsSL "${BASE_URL}/${ASSET}.sha256" -o "${TMPDIR}/${ASSET}.sha256"; then
+  (cd "$TMPDIR" && sha256sum -c "${ASSET}.sha256") || {
+    echo "uv-bootstrap: CHECKSUM MISMATCH — aborting, nothing installed." >&2
+    exit 1
+  }
+else
+  echo "uv-bootstrap: no checksum file published for this asset — aborting." >&2
+  echo "  (Refusing to install an unverified binary. Check ${BASE_URL} manually.)" >&2
+  exit 1
+fi
+
+tar -xzf "${TMPDIR}/${ASSET}" -C "$TMPDIR"
+
+FOUND_UV="$(find "$TMPDIR" -type f -name uv -perm -u+x | head -n1)"
+FOUND_UVX="$(find "$TMPDIR" -type f -name uvx -perm -u+x | head -n1)"
+
+if [[ -z "$FOUND_UV" ]]; then
+  echo "uv-bootstrap: extracted archive but couldn't find a 'uv' binary inside it." >&2
+  exit 1
+fi
+
+mkdir -p "$INSTALL_DIR"
+install -m 755 "$FOUND_UV" "${INSTALL_DIR}/uv"
+[[ -n "$FOUND_UVX" ]] && install -m 755 "$FOUND_UVX" "${INSTALL_DIR}/uvx"
+
+echo "uv ${TAG} installed to ${INSTALL_DIR}/uv" >&2
+exec "${INSTALL_DIR}/uv" "$@"
